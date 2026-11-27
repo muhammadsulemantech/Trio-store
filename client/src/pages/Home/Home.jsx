@@ -82,19 +82,19 @@ function Grid({ products }) {
 
 const HERO_SLIDES = [
   {
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1800&q=70',
+    image: '/images/hero-1.jpg',
     tag: 'New Season · New Tech',
     title: 'Technology That\nMoves You.',
     sub: 'Discover the latest electronics, smart devices and accessories — engineered for performance, designed for life.',
   },
   {
-    image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=1800&q=70',
+    image: '/images/hero-2.jpg',
     tag: 'Premium Laptops',
     title: 'Power Meets\nPrecision.',
     sub: 'Ultra-thin notebooks and powerhouse workstations for creators, gamers, and professionals.',
   },
   {
-    image: 'https://images.unsplash.com/photo-1546868871-af0de0ae72be?auto=format&fit=crop&w=1800&q=70',
+    image: '/images/hero-3.jpg',
     tag: 'Smart Devices',
     title: 'Stay Connected.\nStay Ahead.',
     sub: 'Smartwatches, earbuds, and wearables that keep you in sync with what matters most.',
