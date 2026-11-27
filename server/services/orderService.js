@@ -5,7 +5,7 @@ const InventoryLog = require('../models/InventoryLog');
 const Coupon = require('../models/Coupon');
 const SiteSettings = require('../models/SiteSettings');
 const { applyCoupon } = require('./couponService');
-const { sendOrderConfirmationEmail } = require('./emailService');
+const { sendOrderConfirmationEmail, sendAdminOrderNotificationEmail } = require('./emailService');
 const ApiError = require('../utils/ApiError');
 
 const TAX_RATE = 0.02; // 2% sales tax
@@ -139,12 +139,17 @@ const createOrder = async (user, payload) => {
   // ---- Clear cart ----
   await Cart.deleteOne({ user: user._id });
 
-  // ---- Dispatch confirmation email to customer ----
-  try {
-    await sendOrderConfirmationEmail(order);
-  } catch (err) {
-    console.error('[email] Order confirmation email error:', err.message);
-  }
+  // ---- Dispatch confirmation email to customer & alert email to store inbox ----
+  const emailResults = await Promise.allSettled([
+    sendOrderConfirmationEmail(order),
+    sendAdminOrderNotificationEmail(order),
+  ]);
+  emailResults.forEach((result, idx) => {
+    if (result.status === 'rejected') {
+      const label = idx === 0 ? 'Customer confirmation' : 'Admin notification';
+      console.error(`[email] ${label} email error:`, result.reason?.message || result.reason);
+    }
+  });
 
   return order;
 };

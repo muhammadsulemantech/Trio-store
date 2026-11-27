@@ -1,7 +1,10 @@
 const nodemailer = require('nodemailer');
 
+const getSmtpUser = () =>
+  process.env.SMTP_USER || process.env.GMAIL_USER || 'triostoreinfo@gmail.com';
+
 const getTransporter = () => {
-  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || 'triostoreinfo@gmail.com';
+  const smtpUser = getSmtpUser();
   const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || 'bnaphlzxmdwcykuf';
 
   return nodemailer.createTransport({
@@ -26,7 +29,7 @@ const sendOrderConfirmationEmail = async (order) => {
     return;
   }
 
-  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || 'triostoreinfo@gmail.com';
+  const smtpUser = getSmtpUser();
   const clientUrl = (process.env.CLIENT_URL || 'https://triostore.vercel.app').split(',')[0].trim();
   const orderUrl = `${clientUrl}/orders/${order._id}`;
   const firstName = (order.customerInfo.firstName || 'Customer').trim();
@@ -141,6 +144,139 @@ Trio Store Team
   return info;
 };
 
+/**
+ * Sends a new-order alert email to the store's admin inbox (defaults to SMTP user).
+ */
+const sendAdminOrderNotificationEmail = async (order) => {
+  if (!order) {
+    console.warn('[email] Cannot send admin notification: Order missing');
+    return;
+  }
+
+  const smtpUser = getSmtpUser();
+  const adminEmail = process.env.ADMIN_ORDER_EMAIL || smtpUser;
+  const clientUrl = (process.env.CLIENT_URL || 'https://triostore.vercel.app').split(',')[0].trim();
+  const orderUrl = `${clientUrl}/orders/${order._id}`;
+
+  const customerName = [order.customerInfo?.firstName, order.customerInfo?.lastName]
+    .filter(Boolean)
+    .join(' ')
+    .trim() || 'Customer';
+  const customerEmail = order.customerInfo?.email || 'N/A';
+  const customerPhone = order.customerInfo?.phone || 'N/A';
+  const paymentLabel = order.paymentMethod === 'bank' ? 'Bank Transfer' : 'Cash on Delivery (COD)';
+
+  const plainItems = (order.items || [])
+    .map((item) => `- ${item.name} x ${item.quantity} (${formatPrice(item.price * item.quantity)})`)
+    .join('\n');
+
+  const bankText =
+    order.paymentMethod === 'bank' && order.bankDetails
+      ? `\nBank Details:\nBank: ${order.bankDetails.bankName || 'N/A'}\nAccount Title: ${order.bankDetails.accountTitle || 'N/A'}\nAccount Number: ${order.bankDetails.accountNumber || 'N/A'}\n`
+      : '';
+
+  const text = `
+New Order Received on Trio Store!
+
+Order Number: #${order.orderNumber}
+Total: ${formatPrice(order.total)}
+Payment Method: ${paymentLabel}
+${bankText}
+Customer Details:
+Name: ${customerName}
+Email: ${customerEmail}
+Phone: ${customerPhone}
+
+Shipping Address:
+${order.shippingAddress?.address || ''}, ${order.shippingAddress?.city || ''}, ${order.shippingAddress?.state || ''}
+
+Items:
+${plainItems}
+
+Subtotal: ${formatPrice(order.subtotal)}
+${order.discount > 0 ? `Discount: -${formatPrice(order.discount)}\n` : ''}${order.bankDiscount > 0 ? `Bank Discount: -${formatPrice(order.bankDiscount)}\n` : ''}Sales Tax (2%): ${formatPrice(order.tax)}
+Total Payable: ${formatPrice(order.total)}
+
+Order Link:
+${orderUrl}
+  `.trim();
+
+  const itemsRows = (order.items || [])
+    .map(
+      (item) => `
+      <div style="padding: 6px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; font-size: 13px;">
+        <span><strong>${item.name}</strong> × ${item.quantity}</span>
+        <span style="font-weight: 600;">${formatPrice(item.price * item.quantity)}</span>
+      </div>
+    `
+    )
+    .join('');
+
+  const bankHtml =
+    order.paymentMethod === 'bank' && order.bankDetails
+      ? `
+      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #78350f;">
+        <strong>Bank Transfer Details:</strong><br />
+        Bank: ${order.bankDetails.bankName || 'N/A'}<br />
+        Account Title: ${order.bankDetails.accountTitle || 'N/A'}<br />
+        Account Number: ${order.bankDetails.accountNumber || 'N/A'}
+      </div>
+    `
+      : '';
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; padding: 24px; color: #111; max-width: 540px; margin: 0 auto; border: 1px solid #e5e5e5; border-radius: 12px; background: #ffffff;">
+      <h2 style="color: #000; margin: 0 0 4px 0;">New Order Received</h2>
+      <p style="font-size: 14px; color: #555; margin: 0 0 16px 0;">Order <strong>#${order.orderNumber}</strong> • ${formatPrice(order.total)}</p>
+
+      <div style="background: #f9f9f9; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.6;">
+        <p style="margin: 0 0 4px 0;"><strong>Customer:</strong> ${customerName}</p>
+        <p style="margin: 0 0 4px 0;"><strong>Email:</strong> ${customerEmail}</p>
+        <p style="margin: 0 0 4px 0;"><strong>Phone:</strong> ${customerPhone}</p>
+        <p style="margin: 0 0 4px 0;"><strong>Payment:</strong> ${paymentLabel}</p>
+        <p style="margin: 0;"><strong>Address:</strong> ${order.shippingAddress?.address || ''}, ${order.shippingAddress?.city || ''}, ${order.shippingAddress?.state || ''}</p>
+      </div>
+
+      ${bankHtml}
+
+      <p style="font-size: 13px; font-weight: bold; margin: 0 0 8px 0; color: #333;">Ordered Items:</p>
+      <div style="margin-bottom: 16px;">
+        ${itemsRows}
+      </div>
+
+      <div style="font-size: 13px; line-height: 1.8; margin-bottom: 18px; border-top: 1px solid #eee; padding-top: 10px;">
+        <div style="display: flex; justify-content: space-between;"><span>Subtotal:</span> <span>${formatPrice(order.subtotal)}</span></div>
+        ${order.discount > 0 ? `<div style="display: flex; justify-content: space-between; color: #16a34a;"><span>Discount:</span> <span>-${formatPrice(order.discount)}</span></div>` : ''}
+        ${order.bankDiscount > 0 ? `<div style="display: flex; justify-content: space-between; color: #16a34a;"><span>Bank Discount:</span> <span>-${formatPrice(order.bankDiscount)}</span></div>` : ''}
+        <div style="display: flex; justify-content: space-between;"><span>Sales Tax (2%):</span> <span>${formatPrice(order.tax)}</span></div>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 8px 0;" />
+        <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
+          <span>Total Payable:</span> <span style="color: #000;">${formatPrice(order.total)}</span>
+        </div>
+      </div>
+
+      <div style="margin: 20px 0 8px 0; text-align: center;">
+        <a href="${orderUrl}" style="background-color: #d4af37; color: #000000; padding: 12px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block; font-size: 14px;">View Order</a>
+      </div>
+    </div>
+  `.trim();
+
+  const transporter = getTransporter();
+  const mailOptions = {
+    from: `"Trio Store Orders" <${smtpUser}>`,
+    to: adminEmail,
+    ...(order.customerInfo?.email ? { replyTo: order.customerInfo.email } : {}),
+    subject: `New Order Received - #${order.orderNumber} (${formatPrice(order.total)})`,
+    text,
+    html,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  console.log(`[email] Admin order notification sent to ${adminEmail}. MessageId: ${info.messageId}`);
+  return info;
+};
+
 module.exports = {
   sendOrderConfirmationEmail,
+  sendAdminOrderNotificationEmail,
 };
