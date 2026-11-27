@@ -18,6 +18,12 @@ export default function Home() {
   return (
     <div>
       <Hero />
+
+      <section className="max-w-7xl mx-auto px-4 py-14">
+        <SectionHeader eyebrow="Customer Favorites" title="Best Sellers" action={<ViewAllLink to="/shop?sort=popular" />} />
+        {bestsellers.loading ? <ProductGridSkeleton count={4} /> : <Grid products={bestsellers.data?.products || []} />}
+      </section>
+
       <CategoryStrip data={categories.data} loading={categories.loading} />
 
       <section className="max-w-7xl mx-auto px-4 py-14">
@@ -56,11 +62,6 @@ export default function Home() {
       </section>
 
       <section className="max-w-7xl mx-auto px-4 py-14">
-        <SectionHeader eyebrow="Customer Favorites" title="Best Sellers" action={<ViewAllLink to="/shop?sort=popular" />} />
-        {bestsellers.loading ? <ProductGridSkeleton count={4} /> : <Grid products={bestsellers.data?.products || []} />}
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 pb-14">
         <SectionHeader eyebrow="Just Landed" title="Latest Products" action={<ViewAllLink to="/shop?sort=newest" />} />
         {latest.loading ? <ProductGridSkeleton count={4} /> : <Grid products={latest.data?.products || []} />}
       </section>
